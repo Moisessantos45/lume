@@ -17,3 +17,6 @@ local.properties
 ui/
 
 *.apk
+
+app/release/
+app/build
