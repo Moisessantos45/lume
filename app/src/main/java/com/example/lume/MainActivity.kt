@@ -516,7 +516,7 @@ class PlayerViewModel : ViewModel() {
             appContext?.let { ctx ->
                 val fullTrack = loadFullMetadata(ctx, track)
                 if (fullTrack.title != track.title || fullTrack.artist != track.artist || fullTrack.album != track.album ||
-                    fullTrack.genre != track.genre || fullTrack.durationMs != track.durationMs) {
+                    fullTrack.genre != track.genre || fullTrack.durationMs != track.durationMs || fullTrack.songId != track.songId) {
                     track = fullTrack
                     playbackQueue[index] = track
                     val pIdx = playlist.indexOfFirst { it.uri == track.uri }
@@ -999,37 +999,45 @@ class PlayerViewModel : ViewModel() {
     private fun loadFullMetadata(context: Context, track: Track): Track {
         return try {
             val retrieved = getTrackWithMetadata(context, Uri.parse(track.uri), track.title)
-            val finalArtist = if (retrieved.artist.isBlank() || retrieved.artist.equals("Unknown Artist", ignoreCase = true)) {
-                if (track.artist.isNotBlank() && !track.artist.equals("Unknown Artist", ignoreCase = true)) {
-                    track.artist
-                } else {
-                    retrieved.artist
-                }
-            } else {
+            // Priorizar la información ya validada y saneada en track (de la BD SQLite o scan inicial)
+            // para no alterar títulos ni artistas canónicos indexados en los vectores
+            val finalArtist = if (track.artist.isNotBlank() && !track.artist.equals("Unknown Artist", ignoreCase = true)) {
+                track.artist
+            } else if (retrieved.artist.isNotBlank() && !retrieved.artist.equals("Unknown Artist", ignoreCase = true)) {
                 retrieved.artist
-            }
-            val finalTitle = if (retrieved.title.isBlank() || retrieved.title.equals("Unknown Track", ignoreCase = true)) {
-                if (track.title.isNotBlank() && !track.title.equals("Unknown Track", ignoreCase = true)) {
-                    track.title
-                } else {
-                    retrieved.title
-                }
             } else {
+                track.artist.ifBlank { retrieved.artist }
+            }
+            val finalTitle = if (track.title.isNotBlank() && !track.title.equals("Unknown Track", ignoreCase = true)) {
+                track.title
+            } else if (retrieved.title.isNotBlank() && !retrieved.title.equals("Unknown Track", ignoreCase = true)) {
                 retrieved.title
-            }
-            val finalAlbum = if (retrieved.album.isBlank() || retrieved.album.equals("Unknown Album", ignoreCase = true)) {
-                if (track.album.isNotBlank() && !track.album.equals("Unknown Album", ignoreCase = true)) {
-                    track.album
-                } else {
-                    retrieved.album
-                }
             } else {
-                retrieved.album
+                track.title.ifBlank { retrieved.title }
             }
+            val finalAlbum = if (track.album.isNotBlank() && !track.album.equals("Unknown Album", ignoreCase = true)) {
+                track.album
+            } else if (retrieved.album.isNotBlank() && !retrieved.album.equals("Unknown Album", ignoreCase = true)) {
+                retrieved.album
+            } else {
+                track.album.ifBlank { retrieved.album }
+            }
+            val finalGenre = if (!track.genre.isNullOrBlank()) track.genre else retrieved.genre
+            val finalDuration = if (track.durationMs > 0) track.durationMs else retrieved.durationMs
+            val finalYear = track.year ?: retrieved.year
+            val finalComposer = track.composer ?: retrieved.composer
+            // Preservar de forma estricta el songId original persistido en BD (puede contener gema/salt para unicidad)
+            val finalSongId = if (track.songId.isNotBlank()) track.songId else retrieved.songId
+
             retrieved.copy(
                 artist = finalArtist,
                 title = finalTitle,
                 album = finalAlbum,
+                genre = finalGenre,
+                durationMs = finalDuration,
+                year = finalYear,
+                composer = finalComposer,
+                songId = finalSongId,
                 isFavorite = track.isFavorite
             )
         } catch (e: Exception) {

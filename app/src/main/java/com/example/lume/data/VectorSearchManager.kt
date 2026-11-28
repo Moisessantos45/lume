@@ -667,7 +667,34 @@ object VectorSearchManager {
     ): List<SimilarTrack> = withContext(Dispatchers.Default) {
         ensureCacheLoaded(context)
 
-        val currentVector = getVectorForTrack(currentTrack) ?: return@withContext emptyList()
+        var currentVector = getVectorForTrack(currentTrack)
+        if (currentVector == null) {
+            try {
+                val dbEntity = withContext(Dispatchers.IO) {
+                    AppDatabase.get(context).trackDao().getByUri(currentTrack.uri)
+                }
+                if (dbEntity != null) {
+                    if (dbEntity.songId.isNotBlank()) {
+                        currentVector = vectorCache[dbEntity.songId]
+                    }
+                    if (currentVector == null) {
+                        val dbTrack = Track(
+                            uri = dbEntity.uri,
+                            title = dbEntity.title,
+                            artist = dbEntity.artist,
+                            album = dbEntity.album,
+                            genre = dbEntity.genre,
+                            durationMs = dbEntity.durationMs,
+                            year = dbEntity.year,
+                            songId = dbEntity.songId
+                        )
+                        currentVector = getVectorForTrack(dbTrack)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (currentVector == null) return@withContext emptyList()
 
         val results = ArrayList<SimilarTrack>(candidateTracks.size)
 
@@ -694,7 +721,32 @@ object VectorSearchManager {
      */
     suspend fun hasVectorForTrack(context: Context, track: Track): Boolean = withContext(Dispatchers.Default) {
         ensureCacheLoaded(context)
-        getVectorForTrack(track) != null
+        if (getVectorForTrack(track) != null) return@withContext true
+
+        try {
+            val dbEntity = withContext(Dispatchers.IO) {
+                AppDatabase.get(context).trackDao().getByUri(track.uri)
+            }
+            if (dbEntity != null) {
+                if (dbEntity.songId.isNotBlank() && vectorCache.containsKey(dbEntity.songId)) {
+                    return@withContext true
+                }
+                val candidateIds = getCandidateIdsForTrack(
+                    Track(
+                        uri = dbEntity.uri,
+                        title = dbEntity.title,
+                        artist = dbEntity.artist,
+                        album = dbEntity.album,
+                        songId = dbEntity.songId
+                    )
+                )
+                for (id in candidateIds) {
+                    if (vectorCache.containsKey(id)) return@withContext true
+                }
+            }
+        } catch (_: Exception) {}
+
+        false
     }
 
     /**
