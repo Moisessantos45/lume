@@ -17,9 +17,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -124,10 +126,10 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                     "Nuevos añadidos"
                 }
                 snackbarHostState.showSnackbar(
-                    "✅ $modeDesc: ${result.processedCount} procesados, ${result.skippedCount} omitidos (${result.durationMs}ms)"
+                    "$modeDesc: ${result.processedCount} procesados, ${result.skippedCount} omitidos (${result.durationMs} ms)"
                 )
             } catch (e: Exception) {
-                snackbarHostState.showSnackbar("❌ Error al importar: ${e.localizedMessage ?: e.message}")
+                snackbarHostState.showSnackbar("Error al importar: ${e.localizedMessage ?: e.message}")
             } finally {
                 isProcessing = false
             }
@@ -139,7 +141,7 @@ fun VectorScreen(viewModel: PlayerViewModel) {
         scope.launch {
             val allTracks = viewModel.playlist.toList()
             if (allTracks.isEmpty()) {
-                snackbarHostState.showSnackbar("⚠️ Tu biblioteca no tiene canciones cargadas.")
+                snackbarHostState.showSnackbar("Tu biblioteca no tiene canciones cargadas.")
                 return@launch
             }
 
@@ -160,7 +162,7 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                 }
 
                 if (tracksToSend.isEmpty()) {
-                    snackbarHostState.showSnackbar("✨ Todas las canciones ya tienen vectores generados en la base de datos.")
+                    snackbarHostState.showSnackbar("Todas las canciones ya tienen vectores generados en la base de datos.")
                     isProcessing = false
                     return@launch
                 }
@@ -189,10 +191,10 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                 val formattedTime = formatDurationMs(result.durationMs)
                 val modeDesc = if (effectiveImportMode == VectorImportMode.REPLACE_EXISTING) "Actualización completa" else "Solo faltantes"
                 snackbarHostState.showSnackbar(
-                    "✅ $modeDesc: ${result.processedCount} vectores procesados en $formattedTime (${result.durationMs} ms)"
+                    "$modeDesc: ${result.processedCount} vectores procesados en $formattedTime (${result.durationMs} ms)"
                 )
             } catch (e: Exception) {
-                snackbarHostState.showSnackbar("❌ Error al vectorizar: ${e.localizedMessage ?: e.message}")
+                snackbarHostState.showSnackbar("Error al vectorizar: ${e.localizedMessage ?: e.message}")
             } finally {
                 isProcessing = false
             }
@@ -235,7 +237,12 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("✨", fontSize = 16.sp)
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                             Column {
@@ -275,11 +282,23 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            when (isApiOnline) {
+                                                true -> Color(0xFF4CAF50)
+                                                false -> Color(0xFFE53935)
+                                                null -> Color.Gray
+                                            }
+                                        )
+                                )
                                 Text(
                                     text = when (isApiOnline) {
-                                        true -> "🟢 API en línea (${BuildConfig.VECTOR_API_URL.removePrefix("https://").removePrefix("http://")})"
-                                        false -> "🔴 API no accesible (${BuildConfig.VECTOR_API_URL})"
-                                        null -> "⚪ Comprobando conexión con la API..."
+                                        true -> "API en línea (${BuildConfig.VECTOR_API_URL.removePrefix("https://").removePrefix("http://")})"
+                                        false -> "API no accesible (${BuildConfig.VECTOR_API_URL})"
+                                        null -> "Comprobando conexión con la API..."
                                     },
                                     fontSize = 11.5.sp,
                                     color = when (isApiOnline) {
@@ -380,7 +399,12 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                             modifier = Modifier.size(34.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("☁️", fontSize = 16.sp)
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    tint = AccentCoral,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                         Column {
@@ -582,7 +606,12 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("☁️", fontSize = 15.sp)
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
                         Text(
                             text = "Iniciar Vectorización con la API",
@@ -608,7 +637,12 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text("⏱️", fontSize = 13.sp)
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = AccentCoral,
+                                        modifier = Modifier.size(14.dp)
+                                    )
                                     Text("Tiempo de respuesta API:", fontSize = 11.5.sp, color = TextSub)
                                 }
                                 Text(
@@ -717,7 +751,12 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                             modifier = Modifier.size(32.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("➕", fontSize = 14.sp)
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = TextPrimary,
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                         Column {
@@ -892,7 +931,7 @@ fun VectorScreen(viewModel: PlayerViewModel) {
                         scope.launch {
                             VectorSearchManager.clearAll(context)
                             refreshStats()
-                            snackbarHostState.showSnackbar("🗑️ Base de datos de vectores limpiada")
+                            snackbarHostState.showSnackbar("Base de datos de vectores limpiada")
                         }
                     }
                 ) {

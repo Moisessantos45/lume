@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Search
 import com.example.lume.data.SimilarTrack
 import com.example.lume.data.VectorSearchManager
 import androidx.compose.material3.*
@@ -1648,7 +1649,12 @@ private fun SimilarTracksSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text("✨", fontSize = 16.sp)
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = accent,
+                                    modifier = Modifier.size(18.dp)
+                                )
                                 Text(
                                     text = "Canciones Similares",
                                     fontSize = 17.sp,

@@ -676,8 +676,13 @@ class PlayerViewModel : ViewModel() {
     }
 
     fun previous() {
-        if (!debouncer.tryAcquire("previous")) return
+        if (!debouncer.tryAcquire("previous", 250L)) return
         if (playbackQueue.isEmpty()) return
+        val pos = exoPlayer?.currentPosition ?: currentPosition
+        if (pos > 3000L) {
+            seekTo(0L)
+            return
+        }
         val prevIndex = if (currentTrackIndex - 1 < 0) playbackQueue.size - 1 else currentTrackIndex - 1
         playTrack(prevIndex)
     }

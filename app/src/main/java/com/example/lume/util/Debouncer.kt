@@ -7,10 +7,10 @@ import androidx.compose.runtime.remember
 class Debouncer(private val cooldownMs: Long = 400L) {
     private val last = mutableMapOf<String, Long>()
 
-    fun tryAcquire(key: String): Boolean {
+    fun tryAcquire(key: String, customCooldownMs: Long = cooldownMs): Boolean {
         val now = SystemClock.elapsedRealtime()
         val prev = last[key] ?: 0L
-        if (now - prev < cooldownMs) return false
+        if (now - prev < customCooldownMs) return false
         last[key] = now
         return true
     }
