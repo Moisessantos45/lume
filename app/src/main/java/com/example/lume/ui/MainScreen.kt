@@ -78,7 +78,7 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
         when { h < 12 -> "Lume"; h < 18 -> "Lume"; else -> "Lume" }
     }
 
-    val chips = listOf("All Songs", "Favorites", "Artists", "Albums", "Playlists", "Stats", "Audio")
+    val chips = listOf("All Songs", "Recent", "Favorites", "Artists", "Albums", "Playlists", "Stats", "Audio")
     var selectedChip by remember { mutableStateOf("All Songs") }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     var selectedAlbum by remember { mutableStateOf<String?>(null) }
@@ -96,6 +96,12 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
     LaunchedEffect(selectedPlaylistId) {
         if (selectedPlaylistId != null) {
             viewModel.loadPlaylistTracks(context, selectedPlaylistId!!)
+        }
+    }
+
+    LaunchedEffect(selectedChip) {
+        if (selectedChip == "Recent" && viewModel.recentTracks.isEmpty()) {
+            viewModel.refreshRecentTracks()
         }
     }
 
@@ -389,6 +395,25 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                             AlbumCard(albumKey, tracks.size, tracks.first(), Card, TextPrimary, TextSub) { selectedAlbum = albumKey }
                         }
                     }
+                }
+                state.chip == "Recent" -> {
+                    val stateList = rememberLazyListState()
+                    TrackListWithFastScroll(
+                        tracks = viewModel.recentTracks,
+                        listState = stateList,
+                        activeTrackUri = activeTrackUri,
+                        accent = Accent,
+                        textPrimary = TextPrimary,
+                        textSub = TextSub,
+                        debouncer = debouncer,
+                        onTrackSelect = { track ->
+                            viewModel.playTrack(track, viewModel.recentTracks)
+                            navigator.pushFade(Screen.Player)
+                        },
+                        onFavoriteToggle = { viewModel.toggleFavorite(it) },
+                        emptyMessage = "No hay canciones agregadas recientemente",
+                        showFastScroll = false
+                    )
                 }
                 state.chip == "Favorites" -> {
                     val filtered = viewModel.playlist.filter { it.isFavorite }

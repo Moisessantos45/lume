@@ -119,6 +119,7 @@ class PlayerViewModel : ViewModel() {
     private val exoPlayer: ExoPlayer?
         get() = PlaybackService.playerInstance
     val playlist = mutableStateListOf<Track>()
+    val recentTracks = mutableStateListOf<Track>()
     val playbackQueue = mutableStateListOf<Track>()
     val folders = mutableStateListOf<String>()
     var currentTrackIndex by mutableIntStateOf(-1)
@@ -276,9 +277,12 @@ class PlayerViewModel : ViewModel() {
             val repo = repository ?: return@launch
             val loadedTracks = repo.loadTracks()
             val loadedFolders = repo.loadFolders()
+            val loadedRecent = repo.loadTracksByInsertion()
             withContext(Dispatchers.Main) {
                 playlist.clear()
                 playlist.addAll(loadedTracks)
+                recentTracks.clear()
+                recentTracks.addAll(loadedRecent)
                 folders.clear()
                 folders.addAll(loadedFolders)
                 playbackQueue.clear()
@@ -418,6 +422,7 @@ class PlayerViewModel : ViewModel() {
                         folders.removeAll(foldersDropped.toSet())
                     }
                     SmartShuffleService.instance.warmUp(playlist, context)
+                    refreshRecentTracks()
                 }
             }
         } finally {
@@ -451,6 +456,7 @@ class PlayerViewModel : ViewModel() {
                         }
                         SmartShuffleService.instance.warmUp(playlist, context)
                         isLoading = false
+                        refreshRecentTracks()
                     }
                 }
             }
@@ -488,6 +494,7 @@ class PlayerViewModel : ViewModel() {
                         playbackQueue.addAll(playlist)
                     }
                     SmartShuffleService.instance.warmUp(playlist, context)
+                    refreshRecentTracks()
                 }
             }
         }
@@ -763,6 +770,7 @@ class PlayerViewModel : ViewModel() {
         isPlaying = false
         currentPosition = 0L
         duration = 0L
+        recentTracks.clear()
         playedUris.clear()
         exoPlayer?.stop()
         val prefs = context.getSharedPreferences("lume_playback_prefs", Context.MODE_PRIVATE)
@@ -786,6 +794,21 @@ class PlayerViewModel : ViewModel() {
         val qIndex = playbackQueue.indexOfFirst { it.uri == track.uri }
         if (qIndex != -1) {
             playbackQueue[qIndex] = playbackQueue[qIndex].copy(isFavorite = !playbackQueue[qIndex].isFavorite)
+        }
+        val rIndex = recentTracks.indexOfFirst { it.uri == track.uri }
+        if (rIndex != -1) {
+            recentTracks[rIndex] = recentTracks[rIndex].copy(isFavorite = !recentTracks[rIndex].isFavorite)
+        }
+    }
+
+    fun refreshRecentTracks() {
+        scope.launch {
+            val repo = repository ?: return@launch
+            val list = repo.loadTracksByInsertion()
+            withContext(Dispatchers.Main) {
+                recentTracks.clear()
+                recentTracks.addAll(list)
+            }
         }
     }
 

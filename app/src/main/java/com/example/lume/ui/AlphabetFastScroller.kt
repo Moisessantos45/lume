@@ -159,6 +159,7 @@ fun TrackListWithFastScroll(
     onFavoriteToggle: (Track) -> Unit,
     onDeleteClick: ((Track) -> Unit)? = null,
     emptyMessage: String = "Sin canciones",
+    showFastScroll: Boolean = true,
     keySelector: (Track) -> String = {
         if (it.artist.isNotBlank() && !it.artist.equals("Unknown Artist", ignoreCase = true)) {
             it.artist
@@ -202,7 +203,7 @@ fun TrackListWithFastScroll(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(end = 24.dp),
+                .padding(end = if (showFastScroll) 24.dp else 0.dp),
             contentPadding = PaddingValues(bottom = 80.dp, top = 4.dp)
         ) {
             itemsIndexed(tracks) { index, track ->
@@ -223,19 +224,21 @@ fun TrackListWithFastScroll(
             }
         }
 
-        AlphabetFastScroller(
-            alphabet = alphabet,
-            currentLetter = currentVisibleLetter,
-            letterToIndexMap = letterToIndexMap,
-            onLetterSelected = { targetIdx, _ ->
-                coroutineScope.launch { listState.scrollToItem(targetIdx) }
-            },
-            accent = accent,
-            textSub = textSub,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .padding(top = 4.dp, bottom = 84.dp)
-        )
+        if (showFastScroll) {
+            AlphabetFastScroller(
+                alphabet = alphabet,
+                currentLetter = currentVisibleLetter,
+                letterToIndexMap = letterToIndexMap,
+                onLetterSelected = { targetIdx, _ ->
+                    coroutineScope.launch { listState.scrollToItem(targetIdx) }
+                },
+                accent = accent,
+                textSub = textSub,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .padding(top = 4.dp, bottom = 84.dp)
+            )
+        }
     }
 }

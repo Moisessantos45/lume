@@ -26,6 +26,8 @@ class MusicRepository(private val dao: TrackDao, private val lyricsDao: LyricsDa
 
     suspend fun loadTracks(): List<Track> = dao.getAll().map { it.toTrack() }
 
+    suspend fun loadTracksByInsertion(): List<Track> = dao.getAllByInsertion().map { it.toTrack() }
+
     suspend fun loadFolders(): List<String> = dao.getAllFolders().map { it.uri }
 
     suspend fun getTrackByUri(uri: String): Track? = dao.getByUri(uri)?.toTrack()

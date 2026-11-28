@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -534,48 +535,54 @@ private fun FlipCover(
                             listOf(Color(0xFF1E1E24), Color(0xFF121216))
                         )
                     )
-                    .border(1.dp, Color.White.copy(alpha = 0.15f), shape)
-                    .padding(contentPadding),
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), shape),
                 contentAlignment = Alignment.Center
             ) {
+                val scrollState = rememberScrollState()
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        track.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                        track.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White,
                         maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
                     )
                     Text(
-                        track.artist, fontSize = 13.sp, color = accent, fontWeight = FontWeight.SemiBold,
+                        track.artist, fontSize = 12.sp, color = accent, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
                     )
-                    Box(Modifier.fillMaxWidth(0.45f).height(1.5.dp).clip(CircleShape).background(accent.copy(alpha = 0.7f)))
+                    Box(Modifier.fillMaxWidth(0.40f).height(1.5.dp).clip(CircleShape).background(accent.copy(alpha = 0.7f)))
                     val rows = info
                     if (rows == null) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = accent)
                     } else {
                         rows.forEach { (label, value) ->
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White.copy(alpha = 0.04f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(label, fontSize = 11.sp, color = Color.White.copy(alpha = 0.60f), fontWeight = FontWeight.Medium)
-                                Spacer(Modifier.width(10.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Text(
-                                    value, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                                    value, fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
                                     modifier = Modifier.weight(1f, fill = false)
                                 )
                             }
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         text = "Toca para volver",
-                        fontSize = 10.sp,
+                        fontSize = 9.5.sp,
                         color = Color.White.copy(alpha = 0.40f),
                         fontWeight = FontWeight.Medium
                     )
@@ -1011,12 +1018,26 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                         IconButton(
                             onClick = { debouncer.guard("shuffle") { viewModel.isShuffleEnabled = !viewModel.isShuffleEnabled } }
                         ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_shuffle),
-                                contentDescription = null,
-                                tint = if (viewModel.isShuffleEnabled) Accent else TextSub.copy(alpha = 0.5f),
-                                modifier = Modifier.size(20.dp)
-                            )
+                            val isShuffleActive = viewModel.isShuffleEnabled
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .then(
+                                        if (isShuffleActive) {
+                                            Modifier
+                                                .background(Color.White.copy(alpha = 0.18f), CircleShape)
+                                                .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+                                        } else Modifier
+                                    )
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_shuffle),
+                                    contentDescription = null,
+                                    tint = if (isShuffleActive) Color.White else Color.White.copy(alpha = 0.38f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                         IconButton(
                             onClick = { viewModel.previous() },
@@ -1061,14 +1082,28 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                         IconButton(
                             onClick = { viewModel.toggleRepeatMode() }
                         ) {
-                            Icon(
-                                painter = painterResource(
-                                    id = if (viewModel.repeatMode == RepeatMode.ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat
-                                ),
-                                contentDescription = null,
-                                tint = if (viewModel.repeatMode != RepeatMode.OFF) Accent else TextSub.copy(alpha = 0.5f),
-                                modifier = Modifier.size(20.dp)
-                            )
+                            val isRepeatActive = viewModel.repeatMode != RepeatMode.OFF
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .then(
+                                        if (isRepeatActive) {
+                                            Modifier
+                                                .background(Color.White.copy(alpha = 0.18f), CircleShape)
+                                                .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+                                        } else Modifier
+                                    )
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        id = if (viewModel.repeatMode == RepeatMode.ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat
+                                    ),
+                                    contentDescription = null,
+                                    tint = if (isRepeatActive) Color.White else Color.White.copy(alpha = 0.38f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -1353,12 +1388,26 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                     IconButton(
                         onClick = { debouncer.guard("shuffle") { viewModel.isShuffleEnabled = !viewModel.isShuffleEnabled } }
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_shuffle),
-                            contentDescription = null,
-                            tint = if (viewModel.isShuffleEnabled) Accent else TextSub.copy(alpha = 0.5f),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        val isShuffleActive = viewModel.isShuffleEnabled
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .then(
+                                    if (isShuffleActive) {
+                                        Modifier
+                                            .background(Color.White.copy(alpha = 0.18f), CircleShape)
+                                            .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+                                    } else Modifier
+                                )
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_shuffle),
+                                contentDescription = null,
+                                tint = if (isShuffleActive) Color.White else Color.White.copy(alpha = 0.38f),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                     IconButton(
                         onClick = { viewModel.previous() },
@@ -1403,14 +1452,28 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                     IconButton(
                         onClick = { viewModel.toggleRepeatMode() }
                     ) {
-                        Icon(
-                            painter = painterResource(
-                                id = if (viewModel.repeatMode == RepeatMode.ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat
-                            ),
-                            contentDescription = null,
-                            tint = if (viewModel.repeatMode != RepeatMode.OFF) Accent else TextSub.copy(alpha = 0.5f),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        val isRepeatActive = viewModel.repeatMode != RepeatMode.OFF
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .then(
+                                    if (isRepeatActive) {
+                                        Modifier
+                                            .background(Color.White.copy(alpha = 0.18f), CircleShape)
+                                            .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+                                    } else Modifier
+                                )
+                        ) {
+                            Icon(
+                                painter = painterResource(
+                                    id = if (viewModel.repeatMode == RepeatMode.ONE) R.drawable.ic_repeat_one else R.drawable.ic_repeat
+                                ),
+                                contentDescription = null,
+                                tint = if (isRepeatActive) Color.White else Color.White.copy(alpha = 0.38f),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
 

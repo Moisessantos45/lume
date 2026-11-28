@@ -14,6 +14,9 @@ interface TrackDao {
     @Query("SELECT * FROM tracks ORDER BY artist COLLATE NOCASE, title COLLATE NOCASE")
     suspend fun getAll(): List<TrackEntity>
 
+    @Query("SELECT * FROM tracks ORDER BY rowid DESC")
+    suspend fun getAllByInsertion(): List<TrackEntity>
+
     @Query("SELECT uri FROM tracks")
     suspend fun getAllUris(): List<String>
 
