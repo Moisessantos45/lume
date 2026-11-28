@@ -610,11 +610,11 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
     var lyricsLoaded by remember(track.uri) { mutableStateOf(false) }
 
     var showSimilarSongs by remember { mutableStateOf(false) }
-    var similarTracks by remember(track.uri, track.artist, track.title) { mutableStateOf<List<SimilarTrack>>(emptyList()) }
-    var isLoadingSimilar by remember(track.uri, track.artist, track.title) { mutableStateOf(false) }
-    var hasVectorForCurrentTrack by remember(track.uri, track.artist, track.title) { mutableStateOf(true) }
+    var similarTracks by remember(track.uri, track.artist, track.title, track.songId) { mutableStateOf<List<SimilarTrack>>(emptyList()) }
+    var isLoadingSimilar by remember(track.uri, track.artist, track.title, track.songId) { mutableStateOf(false) }
+    var hasVectorForCurrentTrack by remember(track.uri, track.artist, track.title, track.songId) { mutableStateOf(true) }
 
-    LaunchedEffect(track.uri, track.artist, track.title) {
+    LaunchedEffect(track.uri, track.artist, track.title, track.songId) {
         isLoadingSimilar = true
         val hasVec = VectorSearchManager.hasVectorForTrack(context, track)
         hasVectorForCurrentTrack = hasVec

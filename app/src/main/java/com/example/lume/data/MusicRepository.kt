@@ -3,6 +3,7 @@ package com.example.lume.data
 import android.content.Context
 import com.example.lume.Track
 import com.example.lume.Playlist
+import com.example.lume.util.SongIdGenerator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -33,7 +34,9 @@ class MusicRepository(private val dao: TrackDao, private val lyricsDao: LyricsDa
     suspend fun getTrackByUri(uri: String): Track? = dao.getByUri(uri)?.toTrack()
 
     suspend fun addTracks(tracks: List<Track>) {
-        dao.insertAll(tracks.map { it.toEntity() })
+        val existingSongIds = dao.getAll().map { it.songId }.filter { it.isNotBlank() }.toSet()
+        val assignedTracks = SongIdGenerator.assignUniqueSongIds(tracks, existingSongIds)
+        dao.insertAll(assignedTracks.map { it.toEntity() })
     }
 
     suspend fun clearTracks() {
@@ -71,7 +74,8 @@ class MusicRepository(private val dao: TrackDao, private val lyricsDao: LyricsDa
         durationMs = durationMs,
         year = year,
         composer = null, // TrackEntity no persiste composer; se obtiene al escanear metadatos
-        isFavorite = isFavorite
+        isFavorite = isFavorite,
+        songId = songId
     )
 
     private fun Track.toEntity(): TrackEntity = TrackEntity(
@@ -82,7 +86,8 @@ class MusicRepository(private val dao: TrackDao, private val lyricsDao: LyricsDa
         genre = genre,
         durationMs = durationMs,
         year = year,
-        isFavorite = isFavorite
+        isFavorite = isFavorite,
+        songId = songId
     )
     fun observePlaylists(): Flow<List<Playlist>> =
         dao.observePlaylists().map { list -> list.map { it.toPlaylist() } }

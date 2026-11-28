@@ -360,10 +360,20 @@ object VectorSearchManager {
     fun getCandidateIdsForTrack(track: Track): List<String> {
         val ids = LinkedHashSet<String>()
 
+        // 0. ID único persistido en BD (máxima prioridad, identifica de forma unívoca a duplicados/versiones con gema)
+        if (track.songId.isNotBlank()) {
+            ids.add(track.songId)
+        }
+
         // 1. Coincidencia exacta: Artista + Título
         ids.add(SongIdGenerator.generate(track.artist, track.title))
 
-        // 2. Título sin texto entre paréntesis o corchetes (ej. "Believer (Official Audio)" -> "Believer")
+        // 2. Sal por álbum (si es un álbum específico conocido)
+        if (track.album.isNotBlank() && track.album != "Unknown Album") {
+            ids.add(SongIdGenerator.generateWithSalt(track.artist, track.title, track.album))
+        }
+
+        // 3. Título sin texto entre paréntesis o corchetes (ej. "Believer (Official Audio)" -> "Believer")
         val cleanNoParens = track.title.replace(Regex("""\s*[\(\[\{].*?[\)\]\}]"""), "").trim()
         if (cleanNoParens.isNotBlank() && cleanNoParens != track.title) {
             ids.add(SongIdGenerator.generate(track.artist, cleanNoParens))

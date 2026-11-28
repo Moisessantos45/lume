@@ -99,7 +99,8 @@ data class Track(
     val durationMs: Long = 0L,
     val year: Int? = null,
     val composer: String? = null,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val songId: String = ""
 )
 
 data class Playlist(
@@ -376,11 +377,14 @@ class PlayerViewModel : ViewModel() {
             }
             val removeDistinct = toRemove.distinct()
 
-            if (toAdd.isNotEmpty()) repo.addTracks(toAdd)
+            val existingIds = playlist.map { it.songId }.filter { it.isNotBlank() }.toSet()
+            val assignedToAdd = com.example.lume.util.SongIdGenerator.assignUniqueSongIds(toAdd, existingIds)
+
+            if (assignedToAdd.isNotEmpty()) repo.addTracks(assignedToAdd)
             for (uri in removeDistinct) repo.removeTrack(uri)
             for (folderStr in foldersDropped) repo.removeFolder(folderStr)
 
-            if (toAdd.isNotEmpty() || removeDistinct.isNotEmpty() || foldersDropped.isNotEmpty()) {
+            if (assignedToAdd.isNotEmpty() || removeDistinct.isNotEmpty() || foldersDropped.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     if (removeDistinct.isNotEmpty()) {
                         val removeSet = removeDistinct.toSet()
@@ -414,8 +418,8 @@ class PlayerViewModel : ViewModel() {
                             }
                         }
                     }
-                    if (toAdd.isNotEmpty()) {
-                        playlist.addAll(toAdd)
+                    if (assignedToAdd.isNotEmpty()) {
+                        playlist.addAll(assignedToAdd)
                         playlist.sortBy { "${it.artist.lowercase()}|${it.title.lowercase()}" }
                     }
                     if (foldersDropped.isNotEmpty()) {
@@ -446,10 +450,12 @@ class PlayerViewModel : ViewModel() {
                     val newTracks = scanFolderWithProgress(context, uri) { progress ->
                         loadingProgress = progress
                     }
-                    repository?.addTracks(newTracks)
+                    val existingIds = playlist.map { it.songId }.filter { it.isNotBlank() }.toSet()
+                    val assignedTracks = com.example.lume.util.SongIdGenerator.assignUniqueSongIds(newTracks, existingIds)
+                    repository?.addTracks(assignedTracks)
                     repository?.addFolder(path)
                     withContext(Dispatchers.Main) {
-                        playlist.addAll(newTracks)
+                        playlist.addAll(assignedTracks)
                         playlist.sortBy { "${it.artist.lowercase()}|${it.title.lowercase()}" }
                         if (playbackQueue.isEmpty()) {
                             playbackQueue.addAll(playlist)
@@ -486,9 +492,11 @@ class PlayerViewModel : ViewModel() {
         }
         if (newTracks.isNotEmpty()) {
             scope.launch {
-                repository?.addTracks(newTracks)
+                val existingIds = playlist.map { it.songId }.filter { it.isNotBlank() }.toSet()
+                val assignedTracks = com.example.lume.util.SongIdGenerator.assignUniqueSongIds(newTracks, existingIds)
+                repository?.addTracks(assignedTracks)
                 withContext(Dispatchers.Main) {
-                    playlist.addAll(newTracks)
+                    playlist.addAll(assignedTracks)
                     playlist.sortBy { "${it.artist.lowercase()}|${it.title.lowercase()}" }
                     if (playbackQueue.isEmpty()) {
                         playbackQueue.addAll(playlist)
@@ -880,15 +888,18 @@ class PlayerViewModel : ViewModel() {
                 }
             }
         }
+        val sTitle = TextSanitizer.sanitize(title)
+        val sArtist = TextSanitizer.sanitize(artist)
         return Track(
             uri = uri.toString(),
-            title = TextSanitizer.sanitize(title),
-            artist = TextSanitizer.sanitize(artist),
+            title = sTitle,
+            artist = sArtist,
             album = TextSanitizer.sanitize(album),
             genre = genre?.let { TextSanitizer.sanitize(it) },
             durationMs = durationMs,
             year = year,
-            composer = composer?.let { TextSanitizer.sanitize(it) }
+            composer = composer?.let { TextSanitizer.sanitize(it) },
+            songId = com.example.lume.util.SongIdGenerator.generate(sArtist, sTitle)
         )
     }
 
@@ -960,10 +971,13 @@ class PlayerViewModel : ViewModel() {
         val parsed = parseFileName(nameWithoutExt)
         val rawArtist = parsed.first.ifEmpty { "Unknown Artist" }
         val rawTitle = parsed.second.ifEmpty { nameWithoutExt }
+        val sTitle = TextSanitizer.sanitize(rawTitle)
+        val sArtist = TextSanitizer.sanitize(rawArtist)
         return Track(
             uri = uri,
-            title = TextSanitizer.sanitize(rawTitle),
-            artist = TextSanitizer.sanitize(rawArtist)
+            title = sTitle,
+            artist = sArtist,
+            songId = com.example.lume.util.SongIdGenerator.generate(sArtist, sTitle)
         )
     }
 

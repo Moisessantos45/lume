@@ -12,7 +12,8 @@ data class TrackEntity(
     val genre: String?,
     val durationMs: Long,
     val year: Int?,
-    val isFavorite: Boolean
+    val isFavorite: Boolean,
+    val songId: String = ""
 )
 
 @Entity(tableName = "folders")

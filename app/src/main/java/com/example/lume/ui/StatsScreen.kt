@@ -153,7 +153,10 @@ private fun buildLibraryJson(
         val composer = track.composer?.takeIf { it.isNotBlank() } ?: raw["composer"] ?: ""
 
         val obj = JSONObject()
-        obj.put("id",         SongIdGenerator.generate(track.artist, track.title))
+        val songId = track.songId.ifBlank {
+            SongIdGenerator.generate(track.artist, track.title)
+        }
+        obj.put("id",         songId)
         obj.put("titulo",     track.title)
         obj.put("artista",    track.artist)
         obj.put("album",      album)
@@ -863,7 +866,14 @@ fun StatsScreen(viewModel: PlayerViewModel) {
                                         counts.keys().forEach { k -> exportCounts[k] = counts.optInt(k, 0) }
                                     }
                                 } catch (e: Exception) {}
-                                val snapshot = viewModel.playlist.toList()
+                                val rawSnapshot = viewModel.playlist.toList()
+                                val snapshot = com.example.lume.util.SongIdGenerator.assignUniqueSongIds(rawSnapshot)
+                                if (rawSnapshot.any { it.songId.isBlank() }) {
+                                    withContext(Dispatchers.Main) {
+                                        viewModel.playlist.clear()
+                                        viewModel.playlist.addAll(snapshot)
+                                    }
+                                }
                                 try {
                                     withContext(Dispatchers.Main) {
                                         exportTotal = snapshot.size
