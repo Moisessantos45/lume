@@ -43,6 +43,13 @@
 - **Desplazamiento Automático Suave:** Centrado automático continuo de la letra en pantalla.
 - **Mini Overlay de Letras:** Indicador flotante del verso actual sobre la carátula del álbum en la vista principal.
 
+### ✨ Sugerencias Inteligentes y Búsqueda Vectorial (v5.0+)
+- **Embeddings Multilingües:** Integración con SentenceTransformers (`paraphrase-multilingual-MiniLM-L12-v2`, 384 dimensiones) para capturar afinidad semántica y de metadatos.
+- **Cálculo Instantáneo (<5 ms):** Comparación por similitud coseno en memoria de vectores normalizados L2 directamente en el dispositivo.
+- **Panel Modal de Recomendaciones:** Botón "✨" en el reproductor que descubre hasta 15 canciones similares con porcentaje de afinidad visible.
+- **Identificadores Únicos con Sal ("Gema"):** Manejo avanzado de duplicados y versiones alternativas (remixes, vivo, reediciones) garantizando `songId` único persistido en SQLite (Schema v5).
+- *Documentación detallada en:* [docs/SUGERENCIAS_INTELIGENTES_VECTORES.md](docs/SUGERENCIAS_INTELIGENTES_VECTORES.md).
+
 ### 🔤 Navegación Rápida A-Z (Alphabet Fast Scroller)
 - Tira alfabética lateral (`A-Z + #`) con respuesta háptica integrada.
 - Detección precisa según el orden por artista y burbuja flotante indicadora para saltar instantáneamente en colecciones grandes.
