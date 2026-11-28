@@ -15,9 +15,14 @@ android {
         minSdk = 27
         targetSdk = 36
         versionCode = 1
-        versionName = "5.2"
+        versionName = "5.3.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val vectorApiUrl = (project.findProperty("VECTOR_API_URL") as? String)
+            ?: System.getenv("VECTOR_API_URL")
+            ?: "https://lumevec.mmabitec.uk"
+        buildConfigField("String", "VECTOR_API_URL", "\"$vectorApiUrl\"")
     }
 
     buildTypes {
@@ -36,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

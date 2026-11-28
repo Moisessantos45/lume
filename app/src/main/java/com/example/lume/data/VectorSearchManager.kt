@@ -2,14 +2,21 @@ package com.example.lume.data
 
 import android.content.Context
 import android.util.Base64
+import com.example.lume.BuildConfig
 import com.example.lume.Track
 import com.example.lume.util.SongIdGenerator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.GZIPInputStream
 import kotlin.math.roundToInt
 
 data class SimilarTrack(
@@ -297,6 +304,211 @@ object VectorSearchManager {
             totalInJson = total,
             processedCount = processedCount,
             skippedCount = skippedCount,
+            durationMs = duration
+        )
+    }
+
+    /**
+     * Verifica la disponibilidad del servidor de vectorización mediante GET /health.
+     */
+    suspend fun checkApiHealth(apiUrl: String = BuildConfig.VECTOR_API_URL): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val cleanApiUrl = apiUrl.trim().trimEnd('/')
+            val healthUrl = when {
+                cleanApiUrl.endsWith("/api/v1/vectors") -> cleanApiUrl.removeSuffix("/api/v1/vectors") + "/health"
+                cleanApiUrl.endsWith("/vectors") -> cleanApiUrl.removeSuffix("/vectors") + "/health"
+                else -> "$cleanApiUrl/health"
+            }
+            val url = URL(healthUrl)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 5000
+                readTimeout = 5000
+                instanceFollowRedirects = true
+            }
+            val code = conn.responseCode
+            conn.disconnect()
+            code in 200..299
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Retorna el conjunto de todos los songId que ya tienen vector en la base de datos local.
+     */
+    suspend fun getExistingVectorSongIds(context: Context): Set<String> = withContext(Dispatchers.IO) {
+        AppDatabase.get(context).embeddingDao().getAllSongIds().toHashSet()
+    }
+
+    /**
+     * Envía canciones a la API de vectorización (por defecto https://lumevec.mmabitec.uk)
+     * en lotes de hasta 200 canciones (respetando el límite máximo de 250 por request),
+     * recibe los embeddings generados por SentenceTransformers y los guarda en SQLite.
+     */
+    suspend fun vectoriseViaApi(
+        context: Context,
+        tracksToVectorise: List<Track>,
+        mode: VectorImportMode,
+        apiUrl: String = BuildConfig.VECTOR_API_URL,
+        onProgress: (processedSongs: Int, totalSongs: Int, currentBatch: Int, totalBatches: Int, message: String) -> Unit = { _, _, _, _, _ -> }
+    ): VectorImportResult = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        if (tracksToVectorise.isEmpty()) {
+            return@withContext VectorImportResult(0, 0, 0, 0)
+        }
+
+        val db = AppDatabase.get(context)
+        val dao = db.embeddingDao()
+        val totalSongs = tracksToVectorise.size
+        val batchSize = 200 // Máximo permitido por la API: 250
+        val batches = tracksToVectorise.chunked(batchSize)
+        val totalBatches = batches.size
+
+        var totalProcessed = 0
+        var totalSkipped = 0
+
+        val cleanApiUrl = apiUrl.trim().trimEnd('/')
+        val endpointUrl = when {
+            cleanApiUrl.endsWith("/api/v1/vectors") || cleanApiUrl.endsWith("/vectors") -> cleanApiUrl
+            else -> "$cleanApiUrl/api/v1/vectors"
+        }
+
+        for ((index, batchTracks) in batches.withIndex()) {
+            val batchNumber = index + 1
+            withContext(Dispatchers.Main) {
+                onProgress(
+                    totalProcessed,
+                    totalSongs,
+                    batchNumber,
+                    totalBatches,
+                    "Enviando lote $batchNumber de $totalBatches ($totalProcessed / $totalSongs canciones)..."
+                )
+            }
+
+            // Construir payload JSON del lote
+            val jsonArray = JSONArray()
+            for (track in batchTracks) {
+                val itemObj = JSONObject()
+                val id = track.songId.ifBlank { SongIdGenerator.generate(track.artist, track.title) }
+                itemObj.put("id", id)
+                itemObj.put("titulo", track.title)
+                itemObj.put("artista", track.artist)
+                itemObj.put("album", track.album.takeIf { it.isNotBlank() && it != "Unknown Album" } ?: "")
+                itemObj.put("genero", track.genre ?: "")
+                if (!track.composer.isNullOrBlank()) {
+                    itemObj.put("compositor", track.composer)
+                }
+                jsonArray.put(itemObj)
+            }
+
+            val requestBodyBytes = jsonArray.toString().toByteArray(Charsets.UTF_8)
+
+            var responseJsonStr = ""
+            var attempt = 0
+            val maxAttempts = 3
+            var success = false
+
+            while (attempt < maxAttempts && !success) {
+                attempt++
+                val url = URL(endpointUrl)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 20_000
+                    readTimeout = 90_000
+                    doOutput = true
+                    doInput = true
+                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("Accept-Encoding", "gzip")
+                    setFixedLengthStreamingMode(requestBodyBytes.size)
+                }
+
+                try {
+                    conn.outputStream.use { os ->
+                        os.write(requestBodyBytes)
+                        os.flush()
+                    }
+
+                    val responseCode = conn.responseCode
+
+                    if (responseCode == 429) {
+                        // Rate limit atómico (Redis Token Bucket): esperar antes de reintentar
+                        if (attempt < maxAttempts) {
+                            delay(3000L)
+                            continue
+                        } else {
+                            throw IOException("Límite de peticiones alcanzado (Rate Limit 429). Espera unos segundos e intenta nuevamente.")
+                        }
+                    }
+
+                    if (responseCode !in 200..299) {
+                        val errorStream = conn.errorStream ?: conn.inputStream
+                        val errorText = errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $responseCode"
+                        throw IOException("Error del servidor ($responseCode): $errorText")
+                    }
+
+                    val inputStream = if ("gzip".equals(conn.contentEncoding, ignoreCase = true)) {
+                        GZIPInputStream(conn.inputStream)
+                    } else {
+                        conn.inputStream
+                    }
+
+                    responseJsonStr = inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    success = true
+                } catch (e: Exception) {
+                    if (attempt >= maxAttempts) throw e
+                    delay(2000L)
+                } finally {
+                    conn.disconnect()
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                onProgress(
+                    totalProcessed,
+                    totalSongs,
+                    batchNumber,
+                    totalBatches,
+                    "Guardando lote $batchNumber de $totalBatches en base de datos..."
+                )
+            }
+
+            val root = JSONObject(responseJsonStr)
+            val dimension = root.optInt("dimension", EXPECTED_DIMENSION)
+            val items = root.getJSONArray("items")
+            val batchEntities = ArrayList<EmbeddingEntity>(items.length())
+
+            for (i in 0 until items.length()) {
+                val item = items.getJSONObject(i)
+                val id = item.optString("id", "").trim()
+                val b64 = item.optString("vector_b64", "")
+                if (id.isBlank() || b64.isBlank()) {
+                    totalSkipped++
+                    continue
+                }
+                try {
+                    val bytes = decodificarVector(b64, dimension)
+                    batchEntities.add(EmbeddingEntity(songId = id, embedding = bytes))
+                } catch (_: Exception) {
+                    totalSkipped++
+                }
+            }
+
+            if (batchEntities.isNotEmpty()) {
+                insertBatch(dao, db, batchEntities, mode)
+                totalProcessed += batchEntities.size
+            }
+        }
+
+        invalidateCache()
+        System.gc()
+
+        val duration = System.currentTimeMillis() - startTime
+        VectorImportResult(
+            totalInJson = totalSongs,
+            processedCount = totalProcessed,
+            skippedCount = totalSkipped,
             durationMs = duration
         )
     }

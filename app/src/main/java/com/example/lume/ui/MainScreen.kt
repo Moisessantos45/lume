@@ -36,6 +36,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -276,7 +277,13 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                         shape = RoundedCornerShape(20.dp),
                         color = chipBgColor,
                         border = if (!isSelected) BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)) else null,
-                        modifier = Modifier.clickable { selectedChip = label }
+                        modifier = Modifier.clickable {
+                            selectedChip = label
+                            selectedArtist = null
+                            selectedAlbum = null
+                            selectedPlaylistId = null
+                            isSearchActive = false
+                        }
                     ) {
                         Text(
                             text = label,
@@ -300,11 +307,12 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
         AnimatedContent(
             targetState = screenState,
             transitionSpec = {
-                fadeIn(animationSpec = tween(220)).togetherWith(
-                    fadeOut(animationSpec = tween(180))
+                fadeIn(animationSpec = tween(150)).togetherWith(
+                    fadeOut(animationSpec = tween(100))
                 )
             },
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentKey = { "${it.chip}|${it.artist}|${it.album}|${it.playlistId}" },
+            modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds(),
             label = "library_content_transition"
         ) { state ->
             when {

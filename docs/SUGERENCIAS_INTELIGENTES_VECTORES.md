@@ -1,133 +1,142 @@
-# 🧠 Sugerencias Inteligentes y Búsqueda Vectorial en Lume (v5.0)
+# 🧠 Sugerencias Inteligentes y Búsqueda Vectorial en Lume (v5.0+)
 
-A partir de la **versión 5.0** (Database Schema v5), **Lume** incorpora un motor semántico de **Sugerencias Inteligentes de Canciones** basado en embeddings vectoriales y similitud coseno en el dispositivo. Esta funcionalidad permite descubrir afinidades musicales entre canciones según sus metadatos (título, artista, álbum, género, compositor) de forma local, rápida (<5 ms) y privada.
+A partir de la **versión 5.0** (Database Schema v5), **Lume** incorpora un motor semántico de **Sugerencias Inteligentes de Canciones** basado en embeddings vectoriales y similitud coseno en el dispositivo. 
+
+El sistema admite dos modalidades operativas:
+1. **Modo Nube (API REST):** Vectorización directa y sin fricción mediante la API de alto rendimiento conectada a `https://lumevec.mmabitec.uk`.
+2. **Modo Offline / Archivo Local:** Exportación de `lume.json`, cálculo batch offline con script de Python e importación directa en streaming (`vectores_export.json`).
+
+> [!NOTE]
+> Toda la información sobre el código fuente, despliegue, configuración de FastAPI, Redis, PyTorch CPU y puesta en marcha del servidor se encuentra en su propio repositorio oficial:  
+> 🔗 **[GitHub: Moisessantos45/LumeVec](https://github.com/Moisessantos45/LumeVec)**
 
 ---
 
-## 📐 Arquitectura General del Sistema
+## 📐 Arquitectura y Flujo de la Funcionalidad
 
-El flujo completo combina la exportación de metadatos desde la app Android, el cálculo de embeddings densos de alta dimensión mediante NLP (SentenceTransformers), y la búsqueda e importación de vectores optimizada para dispositivos móviles:
+El proceso de vectorización en la app sigue un flujo optimizado, modular y tolerante a fallos:
 
 ```mermaid
 flowchart TD
-    A["📱 Lume: Biblioteca de Canciones (tracks)"] -->|"Exportar Metadatos"| B["📄 lume.json (con songId único)"]
-    B -->|"Python: SentenceTransformers (MiniLM-L12-v2)"| C["🧮 Generación de Embeddings (384-d, Float32)"]
-    C -->|"Exportar Vectores Normalizados"| D["📄 vectores_export.json (Base64)"]
-    D -->|"Importar a Lume (Streaming JsonReader)"| E["💾 SQLite Room: track_embeddings"]
-    E -->|"Caché en memoria FloatArray"| F["⚡ Motor de Similitud Coseno (<5ms)"]
-    F -->|"Tocar botón '✨' en PlayerScreen"| G["🎶 Sugerencias Personalizadas en UI (0-100% afinidad)"]
+    subgraph App["📱 Lume Android (Cliente)"]
+        A["1. Biblioteca de Canciones (tracks en SQLite)"]
+        B["2. Selección de Alcance en VectorScreen\n(Todas o Solo sin vectores)"]
+        C["3. Filtrado en SQLite (track_embeddings)"]
+        D["4. Fragmentación en lotes (máx. 200 canciones)"]
+        E["5. Bloqueo de UI (Modal de progreso ininterrumpido)"]
+        F["6. POST HTTPS con compresión GZIP"]
+        G["8. Decodificación Base64 a ByteArray (384-d, float32)"]
+        H["9. Inserción por lotes en SQLite (Room)"]
+        I["10. Medición de tiempo (cronómetro) y desbloqueo de UI"]
+        J["PlayerScreen: Botón '✨' Sugerencias (<5ms)"]
+    end
+
+    subgraph API["☁️ Servidor LumeVec (https://github.com/Moisessantos45/LumeVec)"]
+        K["Endpoint: POST /api/v1/vectors"]
+        L["Token Bucket Rate Limiter (Redis)"]
+        M["Modelo: MiniLM-L12-v2 (384 dimensiones)"]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F -->|"Payload JSON"| K
+    K --> L
+    L --> M
+    M -->|"Vectores normalizados en Base64"| G
+    G --> H
+    H --> I
+    I --> J
 ```
 
 ---
 
-## 🔍 ¿Cómo Funciona la Funcionalidad?
+## 🚀 Proceso y Flujo de Vectorización con la API
 
-### 1. Modelo de Embeddings
-Se utiliza el modelo **`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`**:
-- **Dimensiones:** 384 dimensiones.
-- **Tipo de dato:** `float32`, little-endian.
-- **Normalización L2:** Activada (`normalizado = true`).
-- **Ventaja de la normalización:** Dado que los vectores tienen norma unitaria ($\|\mathbf{u}\| = 1$), la **similitud coseno** equivale exactamente al **producto punto** ($\mathbf{u} \cdot \mathbf{v}$), reduciendo la complejidad del cálculo a multiplicaciones y sumas vectoriales inmediatas sin requerir raíces cuadradas.
+### 1. Comprobación Previa de Estado (`Health Check`)
+Al ingresar a la pantalla de vectores (`VectorScreen.kt`), la app verifica de forma no bloqueante el estado del servidor ejecutando un `GET /health`. Si responde exitosamente, se muestra la píldora informativa:
+`🟢 API en línea (lumevec.mmabitec.uk)`.
 
-### 2. Exportación de Metadatos (`StatsScreen.kt`)
-Desde la pantalla de estadísticas, el usuario puede pulsar **"Exportar Metadatos (JSON)"**:
-- Se genera un documento JSON con todas las canciones de la biblioteca.
-- Cada entrada contiene su `id` único (`track.songId`), título, artista, álbum, género, duración, año, compositor, formato y reproducciones.
+### 2. Selección del Alcance de Canciones
+La interfaz permite elegir qué canciones enviar al servidor:
+- **"Todas las canciones":**
+  - Envía la totalidad de las pistas de la biblioteca.
+  - Muestra el selector de guardado: *"Actualizar todo"* (`REPLACE_EXISTING`) o *"Solo los nuevos"* (`INSERT_NEW_ONLY`).
+  - Ideal para la primera vez o si la base de datos de vectores está vacía.
+- **"Solo canciones sin vectores":**
+  - Consulta la tabla `track_embeddings` en SQLite para extraer los IDs ya vectorizados y filtra la lista en memoria en milisegundos.
+  - Si no hay canciones pendientes, avisa al usuario sin realizar peticiones HTTP innecesarias.
+  - **Ocultamiento inteligente:** Oculta automáticamente el selector de modo de guardado con animación colapsable, asignando directamente el modo `INSERT_NEW_ONLY`.
 
-### 3. Procesamiento Externo en Python
-El script de Python procesa `lume.json`:
-1. Normaliza los textos con Unicode NFC.
-2. Agrupa los campos de metadatos formateados como:
-   `"Título: ... | Artista: ... | Álbum: ... | Género: ..."`
-3. Codifica los textos en batches de 32 mediante `model.encode(normalize_embeddings=True)`.
-4. Convierte cada array de `float32` a bytes binarios y los serializa en **Base64**.
-5. Produce `vectores_export.json`.
+### 3. Particionado en Lotes (Chunking)
+Para respetar el límite estricto de 250 canciones por petición del servidor y prevenir sobrecargas de memoria o red:
+- La app divide las canciones en lotes de **200 canciones**.
+- Cada canción se serializa con su identificador único persistido (`songId`), título, artista, álbum, género y compositor.
 
-### 4. Importación con Cero Carga de Memoria (`VectorSearchManager.kt`)
-Para evitar que archivos JSON grandes (10-50 MB) causen errores `OutOfMemoryError` en Android:
-- **Streaming directo con `android.util.JsonReader`:** No se convierte el JSON a `String` ni a árboles `JSONObject`. Se lee flujo a flujo directamente desde el `InputStream` del URI de SAF.
-- **Decodificación directa:** La cadena Base64 se decodifica en un `ByteArray` de $384 \times 4 = 1536$ bytes y se inserta por lotes (batches de 200) en Room.
-- **Opciones de importación:**
-  1. **Actualizar vectores existentes:** `REPLACE_EXISTING` (actualiza los existentes e inserta los nuevos).
-  2. **Insertar solo los nuevos:** `INSERT_NEW_ONLY` (omite los ya presentes y solo añade los faltantes).
-- **Liberación de recursos:** Al finalizar la importación, se vacían las estructuras temporales y se fuerza la recolección de basura con `System.gc()`.
+### 4. Bloqueo Resiliente de la Interfaz
+- Mientras la vectorización está en curso, se despliega un diálogo modal que bloquea la interacción del usuario (`DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)`).
+- Muestra el progreso en tiempo real: *"Enviando lote X de Y (A / B canciones)..."*.
+- **Tolerancia a fallos:** Si ocurre un error de conexión, tiempo de espera agotado o límite de tasa (código HTTP 429), la interfaz se desbloquea de inmediato y de forma garantizada (`finally { isProcessing = false }`), mostrando el mensaje de error en el Snackbar.
 
-### 5. Interfaz de Usuario en el Reproductor (`PlayerScreen.kt`)
-- En la barra de utilidades del reproductor se muestra el botón **"✨"**.
-- Si la canción actual tiene vector disponible, el icono se ilumina en color acento.
-- Al pulsarlo, se despliega un **ModalBottomSheet** moderno que muestra:
-  - Lista de hasta 15 canciones con mayor similitud semántica.
-  - Puntuación visual con porcentaje de afinidad (ej. *94% afinidad*).
-  - Reproducción directa: al tocar cualquier sugerencia, la cola se reconfigura para continuar reproduciendo a partir de esa recomendación.
+### 5. Decodificación e Inserción Local
+- La respuesta HTTP JSON contiene los vectores serializados en Base64.
+- `VectorSearchManager` decodifica la cadena Base64 directamente a un `ByteArray` de $384 \times 4 = 1536$ bytes, sin pasos intermedios innecesarios.
+- Los vectores se insertan en batches de 200 en la tabla `track_embeddings` mediante Room.
+- Se invalida la caché en memoria para que el reproductor reconozca inmediatamente los nuevos vectores.
+
+### 6. Cronómetro y Medición del Tiempo
+- Al concluir todo el proceso, se calcula el tiempo transcurrido desde el inicio de la petición hasta el guardado final en SQLite:
+  - Se muestra una tarjeta con el tiempo exacto: `⏱️ Tiempo de respuesta API: X.XX s (XXXX ms)`.
+  - El `Snackbar` confirma la cantidad de vectores procesados y la duración.
 
 ---
 
-## 🛠️ La Solución al Problema de Colisiones: Identificador Determinístico con Sal ("Gema")
+## 🔒 Configuración de la URL de la API en Tiempo de Compilación
 
-### El Problema Previo
-En bibliotecas reales, es común tener múltiples archivos para una misma canción:
-- Versión original de estudio vs. Versión en vivo (Live).
-- Versiones Remix, Acústicas, Instrumental o Reedición/Remaster.
-- Pistas presentes en diferentes álbumes (álbum original vs. recopilatorio "Greatest Hits").
+A diferencia de Flutter (donde se utiliza `--dart-define-from-file`), en **Android con Kotlin (Gradle)** se utiliza **`BuildConfig`**:
 
-Anteriormente, el ID se calculaba únicamente como `SHA256(artista | titulo)`. Esto provocaba que:
-1. Todas las versiones recibieran el **mismo ID**.
-2. En `lume.json`, los registros colisionaban.
-3. En la tabla SQLite `track_embeddings` (donde `songId` es la Primary Key), solo sobrevivía un único vector.
-4. Al intentar buscar sugerencias para una de las versiones, la consulta podía fallar o referenciar la versión equivocada.
+### 1. Configuración en `app/build.gradle.kts`:
+```kotlin
+android {
+    defaultConfig {
+        val vectorApiUrl = (project.findProperty("VECTOR_API_URL") as? String)
+            ?: System.getenv("VECTOR_API_URL")
+            ?: "https://lumevec.mmabitec.uk"
 
-### La Solución Implementada: Opción 1 (Persistencia de `songId` + Sal/Gema)
+        buildConfigField("String", "VECTOR_API_URL", "\"$vectorApiUrl\"")
+    }
 
-```mermaid
-flowchart TD
-    Start["Escanear o Migrar Canción (uri, artista, titulo, album)"] --> BaseHash["Generar Base: SHA256(artista|titulo)"]
-    BaseHash --> CheckUsed{"¿El hash base ya está en uso?"}
-    CheckUsed -- "No (Primera versión)" --> AssignBase["Asignar ID = Hash Base"]
-    CheckUsed -- "Sí (Colisión detectada)" --> TryAlbum{"¿Tiene álbum válido?"}
-    TryAlbum -- "Sí" --> AlbumSalt["Generar: SHA256(artista|titulo # album)"]
-    AlbumSalt --> CheckAlbumUsed{"¿Hash con álbum libre?"}
-    CheckAlbumUsed -- "Sí" --> AssignAlbum["Asignar ID = Hash Salado con Álbum"]
-    CheckAlbumUsed -- "No" --> GemaSalt["Generar: SHA256(artista|titulo # gema_N)"]
-    TryAlbum -- "No" --> GemaSalt
-    GemaSalt --> AssignGema["Asignar ID = Hash Salado con Gema Incremental"]
-    AssignBase --> Persist["Guardar songId en SQLite (tabla tracks)"]
-    AssignAlbum --> Persist
-    AssignGema --> Persist
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+}
 ```
 
-#### Componentes Clave:
-
-1. **`SongIdGenerator.generateWithSalt(artist, title, salt)`**:
-   Concatena de forma limpia `normalize(artist) + "|" + normalize(title) + "#" + cleanSalt` y genera los primeros 16 caracteres hexadecimales mediante SHA-256.
-
-2. **`SongIdGenerator.assignUniqueSongIds(tracks, existingUsedIds)`**:
-   - Evalúa cada pista.
-   - Si la pista ya posee un `songId` válido y sin colisión, lo conserva intacto.
-   - Si es nueva o colisiona, calcula el hash base. Si ya existe en la biblioteca, intenta usar el álbum como sal ("gema"). Si el álbum también coincide o no existe, aplica una gema numérica determinística incremental (`gema_2`, `gema_3`, etc.).
-
-3. **Migración de Base de Datos `MIGRATION_4_5` en AppDatabase.kt**:
-   - Eleva la versión del esquema de base de datos a **5**.
-   - Ejecuta `ALTER TABLE tracks ADD COLUMN songId TEXT NOT NULL DEFAULT ''`.
-   - Lee todos los registros existentes en la tabla `tracks`, calcula y asigna los IDs únicos resolviendo todas las colisiones sin destruir ninguna canción ni favoritos de los usuarios.
-
-4. **Búsqueda Resiliente en VectorSearchManager.kt**:
-   `getCandidateIdsForTrack` establece el siguiente orden jerárquico de coincidencia:
-   - **Prioridad 0:** `track.songId` persistido en la base de datos (identificación exacta 1:1 de versiones y gemas).
-   - **Prioridad 1:** Coincidencia exacta `artista|titulo`.
-   - **Prioridad 2:** Sal por álbum conocido `artista|titulo#album`.
-   - **Prioridad 3-7:** Variantes resilientes (sin paréntesis, sin número de pista, sin prefijos de artista "feat.", y nombres de archivo).
+### 2. Formas de modificar la URL en compilación:
+- **Por parámetro de Gradle:**
+  ```bash
+  ./gradlew assembleDebug -PVECTOR_API_URL="https://otro-servidor.com"
+  ```
+- **Por variable de entorno:**
+  ```bash
+  export VECTOR_API_URL="https://otro-servidor.com" && ./gradlew assembleDebug
+  ```
+- **Por archivo local:** Añadiendo `VECTOR_API_URL=https://otro-servidor.com` en `local.properties` (ignorado en Git).
+- En el código Kotlin se consume directamente mediante `BuildConfig.VECTOR_API_URL`.
 
 ---
 
-## 📈 Resumen de Archivos Modificados
+## 🛠️ Resolución de Duplicados en Canciones: Sal / Gema Determinística (Opción 1)
 
-| Archivo | Rol en la Implementación |
-|---|---|
-| `data/TrackEntity.kt` | Se agregó la columna `val songId: String = ""` a la entidad Room. |
-| `MainActivity.kt` | Modelo `Track`, escaneo de carpetas y agregación asignando `songId` único. |
-| `data/AppDatabase.kt` | Versión 5 y `MIGRATION_4_5` para actualizar la tabla `tracks`. |
-| `data/MusicRepository.kt` | Mapeo bidireccional de `songId` entre `Track` y `TrackEntity`. |
-| `util/SongIdGenerator.kt` | Algoritmo con sal `generateWithSalt` y asignador `assignUniqueSongIds`. |
-| `ui/StatsScreen.kt` | Exportación de `lume.json` con los `songId` únicos. |
-| `data/VectorSearchManager.kt` | Motor de búsqueda vectorial y candidato prioritario `track.songId`. |
-| `ui/PlayerScreen.kt` | UI con botón "✨" y panel inferior de sugerencias inteligentes. |
+Para evitar colisiones entre versiones distintas de la misma canción (original vs en vivo, remixes o pistas con igual artista y título):
+1. **`SongIdGenerator.generateWithSalt(artist, title, salt)`**: Combina `artista|titulo#sal` en SHA-256 devolviendo los primeros 16 caracteres hexadecimales.
+2. **Asignación:**
+   - La primera versión obtiene el hash base determinístico (`artista|titulo`).
+   - Si otra canción comparte artista y título, se utiliza el nombre del álbum (`album`) como sal.
+   - Si el álbum coincide o no existe, se añade una sal numérica incremental (`gema_2`, `gema_3`, etc.).
+3. **Persistencia en SQLite (Room v5):**
+   - La columna `songId` se persiste en la tabla `tracks` mediante `MIGRATION_4_5`.
+   - La app y la API se comunican mediante ese mismo `songId`, garantizando correspondencia 1:1.
