@@ -11,18 +11,45 @@ import androidx.room.RoomDatabase
         FolderEntity::class,
         PlaylistEntity::class,
         PlaylistTrackEntity::class,
-        LyricsEntity::class
+        LyricsEntity::class,
+        EmbeddingEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun trackDao(): TrackDao
     abstract fun lyricsDao(): LyricsDao
+    abstract fun embeddingDao(): EmbeddingDao
 
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS track_embeddings (
+                        songId TEXT PRIMARY KEY NOT NULL,
+                        embedding BLOB NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                try {
+                    db.execSQL(
+                        """
+                        CREATE VIRTUAL TABLE IF NOT EXISTS vec_canciones USING vec0(
+                            cancion_id TEXT PRIMARY KEY,
+                            embedding float[384] distance_metric=cosine
+                        )
+                        """.trimIndent()
+                    )
+                } catch (_: Exception) {
+                    // Si sqlite-vec no está cargado en el runtime del sistema, se utiliza almacenamiento BLOB nativo
+                }
+            }
+        }
 
         fun get(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -30,7 +57,10 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "lume.db"
-                ).fallbackToDestructiveMigration().build().also { INSTANCE = it }
+                )
+                .addMigrations(MIGRATION_3_4)
+                .fallbackToDestructiveMigration()
+                .build().also { INSTANCE = it }
             }
         }
     }

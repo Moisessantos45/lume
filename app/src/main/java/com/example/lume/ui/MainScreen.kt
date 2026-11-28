@@ -78,7 +78,7 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
         when { h < 12 -> "Lume"; h < 18 -> "Lume"; else -> "Lume" }
     }
 
-    val chips = listOf("All Songs", "Recent", "Favorites", "Artists", "Albums", "Playlists", "Stats", "Audio")
+    val chips = listOf("All Songs", "Recent", "Favorites", "Artists", "Albums", "Playlists", "Vectors", "Stats", "Audio")
     var selectedChip by remember { mutableStateOf("All Songs") }
     var selectedArtist by remember { mutableStateOf<String?>(null) }
     var selectedAlbum by remember { mutableStateOf<String?>(null) }
@@ -548,6 +548,9 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                         onFavoriteToggle = { viewModel.toggleFavorite(it) },
                         emptyMessage = "No se encontraron canciones"
                     )
+                }
+                state.chip == "Vectors" -> {
+                    VectorScreen(viewModel = viewModel)
                 }
                 state.chip == "Stats" -> {
                     StatsScreen(viewModel = viewModel)

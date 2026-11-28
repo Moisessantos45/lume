@@ -32,8 +32,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import com.example.lume.data.SimilarTrack
+import com.example.lume.data.VectorSearchManager
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -606,6 +609,45 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
     var lyricsData by remember(track.uri) { mutableStateOf<LyricsEntity?>(null) }
     var lyricsLoaded by remember(track.uri) { mutableStateOf(false) }
 
+    var showSimilarSongs by remember { mutableStateOf(false) }
+    var similarTracks by remember(track.uri, track.artist, track.title) { mutableStateOf<List<SimilarTrack>>(emptyList()) }
+    var isLoadingSimilar by remember(track.uri, track.artist, track.title) { mutableStateOf(false) }
+    var hasVectorForCurrentTrack by remember(track.uri, track.artist, track.title) { mutableStateOf(true) }
+
+    LaunchedEffect(track.uri, track.artist, track.title) {
+        isLoadingSimilar = true
+        val hasVec = VectorSearchManager.hasVectorForTrack(context, track)
+        hasVectorForCurrentTrack = hasVec
+        if (hasVec) {
+            similarTracks = VectorSearchManager.findSimilarTracks(
+                context = context,
+                currentTrack = track,
+                candidateTracks = viewModel.playlist,
+                limit = 15
+            )
+        } else {
+            similarTracks = emptyList()
+        }
+        isLoadingSimilar = false
+    }
+
+    LaunchedEffect(showSimilarSongs) {
+        if (showSimilarSongs && similarTracks.isEmpty()) {
+            isLoadingSimilar = true
+            val hasVec = VectorSearchManager.hasVectorForTrack(context, track)
+            hasVectorForCurrentTrack = hasVec
+            if (hasVec) {
+                similarTracks = VectorSearchManager.findSimilarTracks(
+                    context = context,
+                    currentTrack = track,
+                    candidateTracks = viewModel.playlist,
+                    limit = 15
+                )
+            }
+            isLoadingSimilar = false
+        }
+    }
+
     var themeColors by remember(track.uri) { mutableStateOf<ExtractedThemeColors?>(null) }
 
     LaunchedEffect(track.uri) {
@@ -907,6 +949,18 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Surface(
                                 shape = CircleShape,
+                                color = if (showSimilarSongs) Accent else Color.White.copy(alpha = 0.12f),
+                                border = if (showSimilarSongs) BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)) else null,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.clickable {
+                                    debouncer.guard("similarSongsToggle") { showSimilarSongs = !showSimilarSongs }
+                                }) {
+                                    Text(text = "✨", fontSize = 14.sp)
+                                }
+                            }
+                            Surface(
+                                shape = CircleShape,
                                 color = if (showLyrics) Accent else Color.White.copy(alpha = 0.12f),
                                 modifier = Modifier.size(36.dp)
                             ) {
@@ -1160,6 +1214,21 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (showSimilarSongs) Accent else Color.White.copy(alpha = 0.12f),
+                            border = if (showSimilarSongs) BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)) else null,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.clickable {
+                                debouncer.guard("similarSongsToggle") { showSimilarSongs = !showSimilarSongs }
+                            }) {
+                                Text(
+                                    text = "✨",
+                                    fontSize = 15.sp
+                                )
+                            }
+                        }
                         Surface(
                             shape = CircleShape,
                             color = if (showLyrics) Accent else Color.White.copy(alpha = 0.12f),
@@ -1490,5 +1559,246 @@ fun PlayerScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
             }
         }
 
+        if (showSimilarSongs) {
+            SimilarTracksSheet(
+                currentTrack = track,
+                similarTracks = similarTracks,
+                isLoading = isLoadingSimilar,
+                hasVector = hasVectorForCurrentTrack,
+                accent = Accent,
+                textPrimary = TextPrimary,
+                textSub = TextSub,
+                onTrackSelect = { selectedTrack ->
+                    val queue = if (similarTracks.isNotEmpty()) similarTracks.map { it.track } else viewModel.playlist
+                    viewModel.playTrack(selectedTrack, queue)
+                    showSimilarSongs = false
+                },
+                onDismiss = { showSimilarSongs = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SimilarTracksSheet(
+    currentTrack: Track,
+    similarTracks: List<SimilarTrack>,
+    isLoading: Boolean,
+    hasVector: Boolean,
+    accent: Color,
+    textPrimary: Color,
+    textSub: Color,
+    onTrackSelect: (Track) -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                ),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    ),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                color = Color(0xFF1E1719),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp)
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(40.dp)
+                                .height(4.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.35f))
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("✨", fontSize = 16.sp)
+                                Text(
+                                    text = "Canciones Similares",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textPrimary
+                                )
+                            }
+                            Text(
+                                text = "Afinidad con \"${currentTrack.title}\"",
+                                fontSize = 12.sp,
+                                color = textSub,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Cerrar",
+                                tint = textSub,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    when {
+                        isLoading -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = accent,
+                                        strokeWidth = 2.5.dp,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                    Text("Calculando afinidad vectorial...", fontSize = 13.sp, color = textSub)
+                                }
+                            }
+                        }
+                        !hasVector -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .padding(horizontal = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Esta canción aún no tiene un vector de embeddings en la base de datos.\n\nVe a la pestaña \"Vectors\" para importar tu archivo generado en Python.",
+                                    fontSize = 13.sp,
+                                    color = textSub,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 20.sp
+                                )
+                            }
+                        }
+                        similarTracks.isEmpty() -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "No se encontraron otras canciones similares en la biblioteca.",
+                                    fontSize = 13.sp,
+                                    color = textSub,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                        else -> {
+                            androidx.compose.foundation.lazy.LazyColumn(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(bottom = 16.dp)
+                            ) {
+                                items(similarTracks.size) { index ->
+                                    val item = similarTracks[index]
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color.White.copy(alpha = 0.05f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { onTrackSelect(item.track) }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.size(44.dp)
+                                            ) {
+                                                TrackCover(track = item.track, modifier = Modifier.fillMaxSize())
+                                            }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = item.track.title,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = textPrimary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = item.track.artist,
+                                                    fontSize = 12.sp,
+                                                    color = textSub,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = accent.copy(alpha = 0.18f),
+                                                border = BorderStroke(1.dp, accent.copy(alpha = 0.40f))
+                                            ) {
+                                                Text(
+                                                    text = "${item.percentage}% afín",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
