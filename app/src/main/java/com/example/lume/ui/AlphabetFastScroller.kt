@@ -41,13 +41,15 @@ fun AlphabetFastScroller(
     val haptic = LocalHapticFeedback.current
     var isDragging by remember { mutableStateOf(false) }
     var activeLetter by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
 
-    Box(modifier = modifier) {
+    Box(
+        modifier = modifier.width(24.dp),
+        contentAlignment = Alignment.CenterEnd
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(22.dp)
+                .width(24.dp)
                 .pointerInput(letterToIndexMap) {
                     detectVerticalDragGestures(
                         onDragStart = { offset ->
@@ -86,14 +88,9 @@ fun AlphabetFastScroller(
                     detectTapGestures { offset ->
                         val idx = ((offset.y / size.height) * alphabet.size).toInt().coerceIn(0, alphabet.size - 1)
                         val letter = alphabet[idx]
-                        activeLetter = letter
                         letterToIndexMap[letter]?.let { targetIdx ->
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onLetterSelected(targetIdx, letter)
-                        }
-                        scope.launch {
-                            delay(400)
-                            activeLetter = null
                         }
                     }
                 },
@@ -101,7 +98,7 @@ fun AlphabetFastScroller(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             alphabet.forEach { letter ->
-                val isSelected = (activeLetter ?: currentLetter) == letter
+                val isSelected = (if (isDragging) activeLetter else currentLetter) == letter
                 val hasItems = letterToIndexMap.containsKey(letter)
                 Text(
                     text = letter,
@@ -117,7 +114,7 @@ fun AlphabetFastScroller(
         }
 
         AnimatedVisibility(
-            visible = activeLetter != null,
+            visible = isDragging && activeLetter != null,
             enter = fadeIn(tween(100)),
             exit = fadeOut(tween(200)),
             modifier = Modifier

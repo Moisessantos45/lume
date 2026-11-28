@@ -531,29 +531,30 @@ private fun FlipCover(
                     .graphicsLayer { rotationY = 180f }
                     .background(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
-                            listOf(Color(0xFFFAF6EC), Color(0xFFEDE8DC))
+                            listOf(Color(0xFF1E1E24), Color(0xFF121216))
                         )
                     )
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), shape)
                     .padding(contentPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        track.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary,
+                        track.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White,
                         maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
                     )
                     Text(
-                        track.artist, fontSize = 12.sp, color = accent, fontWeight = FontWeight.Medium,
+                        track.artist, fontSize = 13.sp, color = accent, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
                     )
-                    Box(Modifier.fillMaxWidth(0.5f).height(1.dp).background(accent.copy(alpha = 0.5f)))
+                    Box(Modifier.fillMaxWidth(0.45f).height(1.5.dp).clip(CircleShape).background(accent.copy(alpha = 0.7f)))
                     val rows = info
                     if (rows == null) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = accent)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = accent)
                     } else {
                         rows.forEach { (label, value) ->
                             Row(
@@ -561,16 +562,23 @@ private fun FlipCover(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(label, fontSize = 11.sp, color = textSub)
+                                Text(label, fontSize = 11.sp, color = Color.White.copy(alpha = 0.60f), fontWeight = FontWeight.Medium)
                                 Spacer(Modifier.width(10.dp))
                                 Text(
-                                    value, fontSize = 12.sp, color = textPrimary, fontWeight = FontWeight.Medium,
+                                    value, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
                                     modifier = Modifier.weight(1f, fill = false)
                                 )
                             }
                         }
                     }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Toca para volver",
+                        fontSize = 10.sp,
+                        color = Color.White.copy(alpha = 0.40f),
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }

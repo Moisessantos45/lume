@@ -143,7 +143,12 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                             focusedBorderColor = Color.Transparent,
                             unfocusedBorderColor = Color.Transparent,
                             focusedContainerColor = Card,
-                            unfocusedContainerColor = Card
+                            unfocusedContainerColor = Card,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = Accent,
+                            focusedPlaceholderColor = TextSub,
+                            unfocusedPlaceholderColor = TextSub
                         ),
                         shape = RoundedCornerShape(24.dp),
                         singleLine = true,
@@ -661,7 +666,12 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                             focusedBorderColor = Accent,
                             unfocusedBorderColor = Card,
                             focusedContainerColor = Card,
-                            unfocusedContainerColor = Card
+                            unfocusedContainerColor = Card,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = Accent,
+                            focusedPlaceholderColor = TextSub,
+                            unfocusedPlaceholderColor = TextSub
                         ),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -703,7 +713,12 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                             focusedBorderColor = Accent,
                             unfocusedBorderColor = Card,
                             focusedContainerColor = Card,
-                            unfocusedContainerColor = Card
+                            unfocusedContainerColor = Card,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = Accent,
+                            focusedPlaceholderColor = TextSub,
+                            unfocusedPlaceholderColor = TextSub
                         ),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -763,7 +778,12 @@ fun MainScreen(viewModel: PlayerViewModel, navigator: CustomNavigator) {
                                 focusedBorderColor = Accent,
                                 unfocusedBorderColor = Card,
                                 focusedContainerColor = Card,
-                                unfocusedContainerColor = Card
+                                unfocusedContainerColor = Card,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = Accent,
+                                focusedPlaceholderColor = TextSub,
+                                unfocusedPlaceholderColor = TextSub
                             ),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
